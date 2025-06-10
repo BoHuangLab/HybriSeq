@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import csv
 import dask.dataframe as dd
+from Bio import pairwise2
 
 def reverse_complement(dna):
     complement = {'A': 'T','a': 'T', 'C': 'G','c': 'G', 'G':'C','g': 'C','T': 'A','t': 'A','N':'N','n':'N'}
@@ -370,4 +371,269 @@ def make_cell_count_matrix(csv_path,
     
     # save as CSV
     cell_count.to_csv(cell_count_save_path,index = False)
+    
+def LR_splitpipe_get_BC(read1):
+    
+    '''
+    
+    adapted barcode calling from LR-splitpipe (Github https://doi.org/10.5281/zenodo.5168059) 
+    for HybriSeq data
+    
+    read1: tuple (str, str), (read_name (str), read1 sequence (str))
+    
+    returns: (read_name ,[Barcode1,Barcode2,Barcode3]), 
+    
+            Barcode1: str of well position for barcode 1 A1-H12
+            Barcode2: str of well position for barcode 2 A1-H12
+            Barcode3: str of well position for barcode 3 A1-H12
+            
+            returns (read_name, ['none','none','none']) if no barcode is found in any position
+            
+    '''
+    
+    name, read1 = read1
+    
+    BC3_dict = {'GACCAAA': 'A1',
+             'CAGTTGC': 'A2',
+             'TTCATGG': 'A3',
+             'TGTTACC': 'A4',
+             'ACATTGC': 'A5',
+             'ACCACGA': 'A6',
+             'GAGTAGT': 'A7',
+             'GCCATAG': 'A8',
+             'GCACATG': 'A9',
+             'GTAGGGT': 'A10',
+             'ATGCCTA': 'A11',
+             'CTTTAGG': 'A12',
+             'ACCTCAG': 'B1',
+             'CAGTGTT': 'B2',
+             'AGATTCG': 'B3',
+             'GACTCTA': 'B4',
+             'ACGCTGA': 'B5',
+             'AGGCATT': 'B6',
+             'ACCAAAC': 'B7',
+             'CTCCTTG': 'B8',
+             'CGAGAGA': 'B9',
+             'GGTTGTC': 'B10',
+             'GAAGCTT': 'B11',
+             'CAGCTAT': 'B12',
+             'ACGGAAT': 'C1',
+             'TCTATGC': 'C2',
+             'CCCTAGA': 'C3',
+             'CCTTGCA': 'C4',
+             'GATGGAG': 'C5',
+             'CGACAAT': 'C6',
+             'CCCAATT': 'C7',
+             'CCCTGAT': 'C8',
+             'GTCAATG': 'C9',
+             'TACAGAC': 'C10',
+             'GGTGATT': 'C11',
+             'GGCTGAA': 'C12',
+             'TGGTCCA': 'D1',
+             'TAGGTGT': 'D2',
+             'CTGAGCT': 'D3',
+             'TCTCTCG': 'D4',
+             'AATGCTC': 'D5',
+             'CCATCGT': 'D6',
+             'CACTTCT': 'D7',
+             'AGCAACA': 'D8',
+             'CGGTATG': 'D9',
+             'ACATCCA': 'D10',
+             'TTCACTC': 'D11',
+             'AAAACCC': 'D12',
+             'CGTGGTA': 'E1',
+             'GAGCTTA': 'E2',
+             'AAGACGT': 'E3',
+             'AAAGGCA': 'E4',
+             'CTACGAG': 'E5',
+             'GTTTTGC': 'E6',
+             'TGGCGAA': 'E7',
+             'TCGCTTC': 'E8',
+             'TATCCCC': 'E9',
+             'CAAGTCG': 'E10',
+             'GTTATCG': 'E11',
+             'CATACGG': 'E12',
+             'AAACACG': 'F1',
+             'TCAGCTG': 'F2',
+             'CCACGTT': 'F3',
+             'TCTGGAT': 'F4',
+             'GTATACC': 'F5',
+             'TCTTCGA': 'F6',
+             'GCGTTTG': 'F7',
+             'ATGGTCA': 'F8',
+             'TGAAGGT': 'F9',
+             'TCGTTCT': 'F10',
+             'CAGGACT': 'F11',
+             'AGCGAGT': 'F12',
+             'AAGAGTC': 'G1',
+             'TAGCCTT': 'G2',
+             'GTCGTTC': 'G3',
+             'AACACTG': 'G4',
+             'CTAAAGC': 'G5',
+             'CACCGTA': 'G6',
+             'CGTGAAG': 'G7',
+             'GTGGATA': 'G8',
+             'TGAGGAG': 'G9',
+             'TGCCATA': 'G10',
+             'AACTAGG': 'G11',
+             'AGCTTTC': 'G12',
+             'TTTCGAC': 'H1',
+             'TATGAGG': 'H2',
+             'TAGACAG': 'H3',
+             'CTTAGTC': 'H4',
+             'TCACCAA': 'H5',
+             'CTCATCC': 'H6',
+             'ATACTCC': 'H7',
+             'GTCTTCA': 'H8',
+             'GACGTAT': 'H9',
+             'CAATGCC': 'H10',
+             'ACGAGCA': 'H11',
+             'AACCCAT': 'H12'}
+    
+    BC1_dict = {'TCTTCTG': 'A1',
+                 'ACGAACT': 'A2',
+                 'GGTTATG': 'A3',
+                 'GACTTGA': 'A4',
+                 'CCTAAAG': 'A5',
+                 'GAACGAC': 'A6',
+                 'GGTATAC': 'A7',
+                 'AGTAGGT': 'A8',
+                 'GAAAGCT': 'A9',
+                 'CTTATGG': 'A10',
+                 'TCCGATA': 'A11',
+                 'AGTGAAG': 'A12',
+                 'CAGTGTT': 'B1',
+                 'TAGTAGG': 'B2',
+                 'TGGATGT': 'B3',
+                 'TGCGAAT': 'B4',
+                 'TCTGAGC': 'B5',
+                 'CCGATAT': 'B6',
+                 'GTCACAG': 'B7',
+                 'CTGGAAT': 'B8',
+                 'AGCTCAG': 'B9',
+                 'GTAGATC': 'B10',
+                 'TTCGCCA': 'B11',
+                 'ATTGGGA': 'B12',
+                 'GTACCTT': 'C1',
+                 'ATCTTGC': 'C2',
+                 'CGACTTG': 'C3',
+                 'ACAGACA': 'C4',
+                 'ATAACCC': 'C5',
+                 'CATACCG': 'C6',
+                 'TACACGA': 'C7',
+                 'TAAGCTC': 'C8',
+                 'CTCTGAT': 'C9',
+                 'TTTGGTC': 'C10',
+                 'GCTGACT': 'C11',
+                 'AAAGGGT': 'C12',
+                 'TATCCAC': 'D1',
+                 'CGCATAA': 'D2',
+                 'TAGGCAT': 'D3',
+                 'TACTGGC': 'D4',
+                 'AGGGAGT': 'D5',
+                 'CAGATTG': 'D6',
+                 'TGCTTAC': 'D7',
+                 'TTGGATG': 'D8',
+                 'ACTCGCT': 'D9',
+                 'TCAAGCA': 'D10',
+                 'CCCTTTT': 'D11',
+                 'CGGTTAG': 'D12',
+                 'TGCCTTT': 'E1',
+                 'CCTTCAT': 'E2',
+                 'CGCTATA': 'E3',
+                 'CAAGGAG': 'E4',
+                 'CCGTATG': 'E5',
+                 'ATGTGAG': 'E6',
+                 'ACATCCG': 'E7',
+                 'CGTCGAT': 'E8',
+                 'GGGGATA': 'E9',
+                 'CCCAACA': 'E10',
+                 'TGTTGCT': 'E11',
+                 'TAGAGTC': 'E12',
+                 'ATAGCTG': 'F1',
+                 'TACGGTG': 'F2',
+                 'GTTTGGT': 'F3',
+                 'AGGGTTG': 'F4',
+                 'TGGCTAA': 'F5',
+                 'GGATGAG': 'F6',
+                 'GGTCGTA': 'F7',
+                 'AACACTG': 'F8',
+                 'AATCACC': 'F9',
+                 'GAATCCC': 'F10',
+                 'GGTAACA': 'F11',
+                 'CAACAGT': 'F12',
+                 'CACTCAA': 'G1',
+                 'GGGTTTT': 'G2',
+                 'CGAGAGA': 'G3',
+                 'GTGCAAG': 'G4',
+                 'TTCTCTC': 'G5',
+                 'GATTAGC': 'G6',
+                 'GTTTCCG': 'G7',
+                 'GACAACC': 'G8',
+                 'ACAGTTC': 'G9',
+                 'GCATGTT': 'G10',
+                 'TCTCTCG': 'G11',
+                 'TGCTCGT': 'G12',
+                 'CTACCGA': 'H1',
+                 'TAATGCG': 'H2',
+                 'CGTTAGT': 'H3',
+                 'GCGATTA': 'H4',
+                 'TTACGCT': 'H5',
+                 'CCTAGTT': 'H6',
+                 'TATCGGT': 'H7',
+                 'AGGTTGA': 'H8',
+                 'GCCAATT': 'H9',
+                 'GAAGCGA': 'H10',
+                 'CCATGAA': 'H11',
+                 'GACCTAT': 'H12'}
+    BC2_dict =BC1_dict
+    
+    L2 = 'CTCAAGCACGTGGATAGTCGTACGCCGATG' # min score 22 (4 miss matched bases)
+    P3 = 'CGAAACATCGGCCAC'# min score 11 (2 miss matched bases)
+
+    L2a = pairwise2.align.localms( read1, L2,1, -1, -1, -1,
+                 one_alignment_only=True)
+    scoreL2 = L2a
+    entryL2 = {}
+    prefL2 = 'L2'
+    entryL2['{}_score'.format(prefL2)] = scoreL2
+    alin_scoreL2 = entryL2['L2_score'][0].score
+    
+    P3a = pairwise2.align.localms( read1, P3,
+                  1, -1, -1, -1,
+                 one_alignment_only=True)
+    scoreP3 = P3a
+    entryP3 = {}
+    prefP3 = 'P3'
+    entryP3['{}_score'.format(prefP3)] = scoreP3
+    alin_scoreP3 = entryP3['P3_score'][0].score
+    
+    # catch poor alingment
+    if alin_scoreL2<22 or alin_scoreP3<11:
+        return(name,['none','none','none'])
+    
+    startL2 = entryL2['L2_score'][0].start
+    stopL2 = entryL2['L2_score'][0].end
+    
+    if (stopL2+7) > len(read1) or (startL2-7) < 0:
+        return(name,['none','none','none'])
+    
+    BC1_seq = read1[stopL2:stopL2+7]
+    BC2_seq = read1[startL2-7:startL2]
+    
+    startP3 = entryP3['P3_score'][0].start
+    if (startP3 -7) <0: # catch barcods outside of seq 
+        return(name,['none','none','none'])
+    
+    BC3_seq = read1[startP3 -7:startP3]
+    
+    BC1 = BC1_dict.get(BC1_seq, 'none')
+    BC2 = BC2_dict.get(BC2_seq, 'none')
+    BC3 = BC3_dict.get(BC3_seq, 'none')
+    if 'none' in [BC1,BC2,BC3]:
+        return(name,['none','none','none'])
+    
+    BC_full = [BC1,BC2,BC3]
+    
+    return(name, BC_full)
 
